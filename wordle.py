@@ -15,6 +15,9 @@ with open("./words.txt", "r") as f:
     guesses = f.readlines()
 
 
+WORD_COUNTER = {}
+
+
 def clean_words(lines):
     """Cleans input of wordle words"""
     return [i.strip() for i in lines[0].replace('"', "").split(",")]
@@ -249,6 +252,11 @@ class StratMaxEntropy(AbstractWordleStrat):
                 guess_entropy[guess] += im * probs[idx]
                 guess_minmax[guess].append(im * probs[idx])
 
+        # Used to save best and worst first guesses
+        # with open('FirstWordRankingsEntropy.json', 'w') as f:
+        #     json.dump(guess_entropy, f)
+        #     assert False 
+
         if VERBOSE > 1:
             for k, v in sorted(guess_minmax.items(), key=lambda x: sum(x[1])):
                 print(k, v)
@@ -317,6 +325,12 @@ class StratMinMax(AbstractWordleStrat):
                 print(k, v)
 
         guess_vals = [(k, min(v)) for k, v in guess_minmax.items()]
+        
+        # Used to save best and worst first guesses
+        with open('FirstWordMinMax.json', 'w') as f:
+            json.dump(guess_vals, f)
+            assert False 
+
         next_guess = max(guess_vals, key=lambda x: x[1])[0]
 
         return next_guess
@@ -364,6 +378,7 @@ class WordleBot:
         # Run through all possible solutions
         for n, solution in enumerate(solutions_copy):
             self._reset()
+            WORD_COUNTER[solution] = []
 
             self.game.set_solution(solution)
             guesses = self._play_single_game()
@@ -375,6 +390,9 @@ class WordleBot:
             # Store the results
             with open("results.json", "w") as f:
                 json.dump(self.results, f)
+
+            with open("entropy_per_solution.json", "w") as f:
+                json.dump(WORD_COUNTER, f)
         return self.results
 
     def _play_single_game(self) -> int:
@@ -383,6 +401,7 @@ class WordleBot:
 
         while True:
 
+            WORD_COUNTER[self.game.solution].append((np.log2(len(self.strategy.possible_solutions))))
             if self.method == self.BotMethods.manual:
                 guess = input()
                 if guess == "":
@@ -442,14 +461,17 @@ class WordleBot:
 
 def main():
 
-    max_entropy_strat = StratMaxEntropy(
-        possible_solutions=SOLUTIONS[:], possible_guesses=GUESSES[:]
-    )
-    minmax_strat = StratMinMax(possible_solutions=SOLUTIONS[:], possible_guesses=GUESSES[:])
-    wordle_bot = WordleBot(strategy=max_entropy_strat, method=WordleBot.BotMethods.interactive)
+    METHOD = WordleBot.BotMethods.benchmark
+    FIRST_WORD = 'crate'
 
-    # Add the first word to the cache
-    wordle_bot.cache.add([CharacterResult.NOT_EVALUATED]*5, 'reast')
+    max_entropy_strat = StratMaxEntropy(possible_solutions=SOLUTIONS[:], possible_guesses=GUESSES[:])
+    minmax_strat = StratMinMax(possible_solutions=SOLUTIONS[:], possible_guesses=GUESSES[:])
+
+    wordle_bot = WordleBot(strategy=max_entropy_strat, method=METHOD)
+
+    # (Optional) Add the first word to the cache
+    wordle_bot.cache.add([CharacterResult.NOT_EVALUATED]*5, FIRST_WORD)
+    
     wordle_bot.start()
 
 
